@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video Splitter</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon_io/favicon.ico') }}" type="image/x-icon">
+  <!-- Link to Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+  <!-- Link to Bootstrap JS and Popper.js -->
+  <script src="https://code.jquery.com/jquery-3.7.1.js" integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4="
+    crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"
+    integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r"
+    crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js"
+    integrity="sha384-BBtl+eGJRgqQAUMxJ7pMwbEyER4l1g+O15P+16Ep7Q9Q+zqX6gSbd85u4mG4QzX+"
+    crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"
+    integrity="sha512-zoJXRvW2gC8Z0Xo3lBbao5+AS3g6YWr5ztKqaicua11xHo+AvE1b0lT9ODgrHTmNUxeCw0Ry4BGRYZfXu70weg=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <style>
+    #main {
+      width: 100vw;
+      height: 100vh;
+      min-width: 100%;
+      min-height: 100%;
+    }
+
+    #main>div,
+    form {
+      min-width: 300px;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="main" class="d-flex flex-column justify-content-evenly align-items-center">
+    <div class="w-50">
+      <h1 class="text-center mb-5">Video Splitter</h1>
+      <form method="post" enctype="multipart/form-data" id="split-form" class="w-50 m-auto">
+        <div class="mb-3">
+          <label for="input_file" class="form-label">Input Video File:</label>
+          <input type="file" class="form-control" name="input_file" id="input_file" accept="video/*" required>
+        </div>
+
+        <div class="mb-3">
+          <label for="output_prefix" class="form-label">Output Prefix:</label>
+          <input type="text" class="form-control" name="output_prefix" required autocomplete="off">
+        </div>
+
+        <div class="mb-3">
+          <label for="num_parts" class="form-label">Number of Parts:</label>
+          <input type="number" class="form-control" name="num_parts" required min="2" value="2" autocomplete="off">
+        </div>
+
+        <div class="d-flex w-100 justify-content-evenly mt-4">
+          <button type="button" class="btn btn-primary fs-5" onclick="splitVideo()">Split Video</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal fade" id="loadingModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1"
+    aria-labelledby="loadingModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title text-info">Please wait</h5>
+        </div>
+        <div class="modal-body text-center">
+          <div class="d-flex align-items-center">
+            <strong role="status">Processing...</strong>
+            <div class="spinner-border ms-auto" aria-hidden="true"></div>
+          </div>
+          <h4 id="title-progress" class="mt-3 mb-1"></h4>
+          <div class="progress" role="progressbar" aria-label="progress bar" aria-valuenow="50" aria-valuemin="0"
+            aria-valuemax="100">
+            <div id="progress-bar" class="progress-bar progress-bar-striped bg-info"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="successModal" tabindex="-1" aria-labelledby="staticBackdropLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h1 class="modal-title fs-5 text-success">Success</h1>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          Video đã được split thành công
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="staticBackdropLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h1 class="modal-title fs-5 text-danger">Error</h1>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          Có lỗi trong quá trình xử lý
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var socket = io.connect('http://' + document.domain + ':' + location.port);
+
+    socket.on('update_progress', function (data) {
+      if (data.progress !== undefined) {
+        updateProgressBar(data.progress);
+      }
+
+      if (data.error !== undefined) {
+        handleError(data.error);
+      }
+
+      if (data.title !== undefined) {
+        updateTitle(data.title);
+      }
+    });
+
+    function updateProgressBar(progress) {
+      var progressBar = document.getElementById('progress-bar');
+      progressBar.style.width = (progress) + '%';
+
+      if (progress === 1.0) {
+        $('#loadingModal').modal('hide');
+        $('#successModal').modal('show');
+      }
+    }
+
+    function handleError(error) {
+      // Hiển thị modal lỗi
+      $('#loadingModal').modal('hide');
+      $('#errorModal').modal('show');
+    }
+
+    function updateTitle(title) {
+      var titleElement = document.getElementById('title-progress');
+      titleElement.textContent = title;
+    }
+
+    function splitVideo() {
+      // Hiển thị modal trước khi gửi form
+      $('#loadingModal').modal('show');
+
+      // Gửi form bằng Ajax
+      $.ajax({
+        type: 'POST',
+        url: '/',
+        data: new FormData($('#split-form')[0]),
+        contentType: false,
+        processData: false,
+        success: function (data) {
+          console.log(data);
+        },
+        error: function (error) {
+          console.error(error);
+        }
+      });
+    }
+  </script>
+
+</body>
+
+</html>
