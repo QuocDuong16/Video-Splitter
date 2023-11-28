@@ -7,13 +7,9 @@
 - Clone repo này về
 - Sau đó active venv bằng lệnh
   <pre>
-  ```
   .\venv\Scripts\activate
-  ```
   </pre>
 - Dùng lệnh này để chạy ứng dụng
   <pre>
-  ```
   python .\app.py
-  ```
   </pre>
