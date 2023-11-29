@@ -5,9 +5,17 @@
 ## Cài Đặt
 **Hướng dẫn sử dụng:**
 - Clone repo này về
-- Sau đó active venv bằng lệnh
+- Sau đó tạo một môi trường ảo bằng lệnh sau
+  <pre>
+  python -m venv venv
+  </pre>
+- Kích hoạt môi trường ảo
   <pre>
   .\venv\Scripts\activate
+  </pre>
+- Cài đặt các thư viện cần thiết
+  <pre>
+  pip install -r requirements.txt
   </pre>
 - Dùng lệnh này để chạy ứng dụng
   <pre>
