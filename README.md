@@ -5,6 +5,9 @@
 ## Cài Đặt
 **Hướng dẫn sử dụng:**
 - Clone repo này về
+  <pre>
+  git clone https://github.com/QuocDuong16/Video-Splitter.git
+  </pre>
 - Sau đó tạo một môi trường ảo bằng lệnh sau
   <pre>
   python -m venv venv
