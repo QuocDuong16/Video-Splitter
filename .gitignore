@@ -1,2 +1,6 @@
 # Bỏ qua tất cả các tệp và thư mục có tên "vnev"
 venv/
+output_videos/
+temp_files/
+
+**.mp4
