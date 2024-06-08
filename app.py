@@ -1,9 +1,10 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory
 from threading import Thread
 from flask_socketio import SocketIO
 import os
 from proglog import ProgressBarLogger
 from moviepy.editor import VideoFileClip
+import shutil  # Thêm thư viện shutil để thực hiện xóa thư mục và nội dung bên trong
 
 app = Flask(__name__)
 socketio = SocketIO(app)
@@ -21,19 +22,15 @@ if not os.path.exists(OUTPUT_FOLDER):
 class MyBarLogger(ProgressBarLogger):
     
     def callback(self, **changes):
-        # Every time the logger message is updated, this function is called with
-        # the `changes` dictionary of the form `parameter: new value`.
         for (parameter, value) in changes.items():
             print ('Parameter %s is now %s' % (parameter, value))
     
     def bars_callback(self, bar, attr, value, old_value=None):
-        # Every time the logger progress is updated, this function is called        
         percentage = (value / self.bars[bar]['total']) * 100
         if bar == 't' and attr == 'index':
             socketio.emit('update_progress', {'progress': percentage})
-        print(bar,attr,percentage)
+        print(bar, attr, percentage)
 
-# function split video
 def split_video_task(temp_filepath, output_prefix, num_parts):
     try:
         print("split_video_task is called")
@@ -58,11 +55,32 @@ def split_video_task(temp_filepath, output_prefix, num_parts):
 
         clip.close()
         socketio.emit('update_progress', {'progress': 1.0})
+
+        # Sau khi tách video xong, tự động tải xuống thư mục OUTPUT_FOLDER
+        shutil.make_archive(OUTPUT_FOLDER, 'zip', OUTPUT_FOLDER)
+
     except Exception as e:
         print(f"Error in split_video_task: {e}")
         socketio.emit('update_progress', {'error': str(e)})
     finally:
-        os.remove(temp_filepath)
+        # Xóa tất cả các tệp đã tạo trong thư mục TEMP_FOLDER
+        for filename in os.listdir(TEMP_FOLDER):
+            file_path = os.path.join(TEMP_FOLDER, filename)
+            try:
+                if os.path.isfile(file_path):
+                    os.unlink(file_path)
+            except Exception as e:
+                print(f"Error deleting file {file_path}: {e}")
+
+        # Xóa tất cả các tệp bên trong thư mục OUTPUT_FOLDER
+        for filename in os.listdir(OUTPUT_FOLDER):
+            file_path = os.path.join(OUTPUT_FOLDER, filename)
+            try:
+                if os.path.isfile(file_path):
+                    os.unlink(file_path)
+            except Exception as e:
+                print(f"Error deleting file {file_path}: {e}")
+
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -78,11 +96,14 @@ def index():
         thread = Thread(target=split_video_task, args=(temp_filepath, output_prefix, num_parts))
         thread.start()
 
-        # Wait thread
-        thread.join()
         return jsonify({'success': True})
 
     return render_template('index.html')
+
+# Thêm route để tải xuống thư mục OUTPUT_FOLDER
+@app.route('/download', methods=['GET'])
+def download():
+    return send_from_directory(directory=OUTPUT_FOLDER, filename='output_videos.zip', as_attachment=True)
 
 if __name__ == "__main__":
     app.run(debug=True)
